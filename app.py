@@ -360,11 +360,13 @@ def format_date(d):
 def analyze_resume_with_gpt(resume_info, job_description):
     openai.api_key = os.getenv("OPENAI_API_KEY")
     if not openai.api_key:
-        st.error("OpenAI API key not found in environment variables.")
+        st.warning("OpenAI API key not found in environment variables.")
         return "Score: 0\nRecommendation: Analysis failed due to missing API key\nStrengths: None\nGaps: None"
+
     resume_text = resume_info.get('text', '')
     if not resume_text:
         resume_text = f"Name: {resume_info.get('name', 'Not found')}\nEmail: {resume_info.get('email', 'Not found')}\nMobile: {resume_info.get('mobile', 'Not found')}"
+
     prompt = f"""
 You are an expert HR recruiter specializing in data science hiring. Your task is to critically evaluate a candidate's resume against a job description and assign a realistic score out of 10.
 
@@ -397,29 +399,25 @@ You are an expert technical recruiter tasked with evaluating a candidate's fit f
    - 0–4: Poor fit — lacks major qualifications or relevant experience.
 
 5. Output Format (Structured and Concise):
-   - Score: [e.g., 8.5]
-   - Recommendation: [e.g., “Strong match for interview shortlist.”]
-   - Strengths: [e.g., “Robust experience with Python, SQL, and end-to-end ML workflows.”]
-   - Gaps: [e.g., “Limited cloud deployment and stakeholder communication.”]
+Score: [e.g., 8.5]
+Recommendation: [e.g., Strong match for interview shortlist.]
+Strengths: [e.g., Robust experience with Python, SQL, and end-to-end ML workflows.]
+Gaps: [e.g., Limited cloud deployment and stakeholder communication.]
 
 Be objective and realistic. Focus on job readiness, not just keywords. Avoid inflating scores.
 """
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4" if os.getenv("USE_GPT4", "0") == "1" else "gpt-3.5-turbo",
-            
-            messages=[
-                {"role": "system", "content": "You are an expert HR recruiter analyzing resumes."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_tokens=500
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
         )
-        return response['choices'][0]['message']['content'].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
-        st.error(f"GPT analysis failed: {str(e)}")
-        return f"Score: 0\nRecommendation: Analysis failed due to {str(e)}\nStrengths: None\nGaps: None"
+        st.warning(f"Error: {e}")
+        return "Score: 0\nRecommendation: Analysis failed due to an error\nStrengths: None\nGaps: None"
+
 
 def init_db():
     conn = get_connection()
