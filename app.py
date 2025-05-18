@@ -716,7 +716,7 @@ elif st.session_state.page == "dashboard":
                                 key=f"download_resume_{index}"
                             )
                     else:
-                        st.error("Resume file not found or path missing in database.")
+                        st.info("ℹ️ Resume file not found, but extracted details are available in the report.")
                     st.markdown('</div>', unsafe_allow_html=True)
 
         # Add a single export button at the end of all filtered results
