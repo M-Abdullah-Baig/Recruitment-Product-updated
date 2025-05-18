@@ -860,15 +860,15 @@ elif st.session_state.page == "process_email":
                     email = resume_info.get('email', 'Not found')
                     mobile = resume_info.get('mobile', 'Not found')
 
-                    store_analysis(
+                    store_result = store_analysis(
                         name, email, mobile,
                         strengths, score, recommendation, gaps,
                         resume_path, job_title, batch_id
                     )
 
-                    if result == "added":
+                    if store_result == "added":
                         total_processed += 1
-                    elif result == "duplicate":
+                    elif store_result == "duplicate":
                         total_duplicates += 1
 
                 st.success(
