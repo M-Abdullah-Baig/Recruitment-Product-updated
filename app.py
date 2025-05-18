@@ -719,25 +719,27 @@ elif st.session_state.page == "dashboard":
                         st.error("Resume file not found or path missing in database.")
                     st.markdown('</div>', unsafe_allow_html=True)
 
-                    df = pd.DataFrame([row])
-                    output = BytesIO()
-                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                        df.to_excel(writer, index=False, sheet_name='Resume Analysis')
-                    excel_data = output.getvalue()
-                    col2.download_button(
-                        label="📊 Export to Excel",
-                        data=excel_data,
-                        file_name=f"{row['name']}_resume_analysis.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key=f"export_excel_quick_{index}"
-                    )
-                    st.markdown('</div>', unsafe_allow_html=True)
+        # Add a single export button at the end of all filtered results
+        if not filtered_df.empty:
+            # Create an Excel export of the entire filtered DataFrame
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                filtered_df.to_excel(writer, index=False, sheet_name='Filtered Resumes')
+            excel_data = output.getvalue()
+
+            # Display the download button for the whole filtered dataset
+            st.download_button(
+                label="📊 Export All to Excel",
+                data=excel_data,
+                file_name="filtered_resumes.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         else:
             st.info("No results found matching the filters.")
 
 
 elif st.session_state.page == "process_email":
-    st.title("Process Email Resumes (IMAP Version)")
+    st.title("Process Email Resumes")
 
     job_keyword = st.text_input("Enter Job Keyword (e.g., Data Scientist)").strip()
     col1, col2 = st.columns(2)
@@ -1016,17 +1018,21 @@ elif st.session_state.page == "quick_analysis":
                 else:
                     st.warning("Resume file not found.")
 
-                df = pd.DataFrame([row])
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df.to_excel(writer, index=False, sheet_name='Resume Analysis')
-                excel_data = output.getvalue()
-                col2.download_button(
-                    label="📊 Export to Excel",
-                    data=excel_data,
-                    file_name=f"{row['name']}_resume_analysis.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"export_excel_quick_{index}"
-                )
+        # Export all analyzed results to a single Excel file
+        final_df = pd.DataFrame(st.session_state.quick_analysis_results)
+
+        output_all = BytesIO()
+        with pd.ExcelWriter(output_all, engine='openpyxl') as writer:
+            final_df.to_excel(writer, index=False, sheet_name='Resume Analysis')
+
+        excel_all_data = output_all.getvalue()
+
+        st.download_button(
+            label="📊 Export All Analyses to Excel",
+            data=excel_all_data,
+            file_name="all_resume_analysis.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="export_all_excel"
+        )
     else:
         st.info("No resumes analyzed yet.")
