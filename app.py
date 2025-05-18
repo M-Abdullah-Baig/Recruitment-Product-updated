@@ -377,34 +377,34 @@ Candidate Resume:
 Instructions:
 You are an expert technical recruiter tasked with evaluating a candidate's fit for a data science role based on their resume and the job description. Follow the steps below to conduct a professional screening.
 
-1. **Experience Evaluation**:
-   - Prioritize **full-time experience** if the job description explicitly requires it (e.g., “3+ years full-time experience”).
-   - If not explicitly stated, include **internships, freelance work, academic projects**, or part-time roles that demonstrate practical exposure.
-   - Assess the **relevance, duration, and depth** of the candidate’s roles to the JD.
+1. Experience Evaluation:
+   - Prioritize full-time experience if the job description explicitly requires it (e.g., “3+ years full-time experience”).
+   - If not explicitly stated, include internships, freelance work, academic projects, or part-time roles that demonstrate practical exposure.
+   - Assess the relevance, duration, and depth of the candidate’s roles to the JD.
 
-2. **Skills Assessment**:
+2. Skills Assessment:
    - Match candidate skills (technical tools, programming languages, frameworks, platforms) against those mentioned in the JD.
    - Consider both hands-on experience and conceptual understanding.
-   - Highlight any **unique or in-demand tools** (e.g., ML frameworks, cloud platforms, big data tools).
+   - Highlight any unique or in-demand tools (e.g., ML frameworks, cloud platforms, big data tools).
 
-3. **Education & Certifications**:
+3. Education & Certifications:
    - Evaluate the candidate’s academic background (degree level, institution, major) in relation to the job’s expectations.
    - Note relevant certifications (e.g., AWS, Azure, Google Cloud, Data Science Specializations) that add value.
 
-4. **Scoring Guidelines** (Rate from 0–10):
-   - **8–10**: Excellent fit — candidate meets or exceeds key requirements and is job-ready.
-   - **5–7**: Moderate fit — good potential but needs minor upskilling or experience depth.
-   - **0–4**: Poor fit — lacks major qualifications or relevant experience.
+4. Scoring Guidelines (Rate from 0–10):
+   - 8–10: Excellent fit — candidate meets or exceeds key requirements and is job-ready.
+   - 5–7: Moderate fit — good potential but needs minor upskilling or experience depth.
+   - 0–4: Poor fit — lacks major qualifications or relevant experience.
 
-5. **Output Format** (Structured and Concise):
-   - **Score**: [e.g., 8.5]
-   - **Recommendation**: [e.g., “Strong match for interview shortlist.”]
-   - **Strengths**: [e.g., “Robust experience with Python, SQL, and end-to-end ML workflows.”]
-   - **Gaps**: [e.g., “Limited cloud deployment and stakeholder communication.”]
+5. Output Format (Structured and Concise):
+   - Score: [e.g., 8.5]
+   - Recommendation: [e.g., “Strong match for interview shortlist.”]
+   - Strengths: [e.g., “Robust experience with Python, SQL, and end-to-end ML workflows.”]
+   - Gaps: [e.g., “Limited cloud deployment and stakeholder communication.”]
 
 Be objective and realistic. Focus on job readiness, not just keywords. Avoid inflating scores.
-
 """
+
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4" if os.getenv("USE_GPT4", "0") == "1" else "gpt-3.5-turbo",
