@@ -455,22 +455,17 @@ def store_analysis(name, email, mobile, strengths, score, recommendation, gaps, 
     conn = get_connection()
     c = conn.cursor()
 
-    c.execute('''SELECT COUNT(*) FROM analysis 
-                 WHERE name = %s AND email = %s AND mobile = %s AND job_title = %s AND batch_id = %s''',
-              (name, email, mobile, job_title, batch_id))
-    exists = c.fetchone()[0] > 0
+    c.execute('''
+        INSERT INTO analysis 
+        (name, email, mobile, strengths, gaps, recommendation, score, status, resume_path, job_title, date_added, batch_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE, %s)
+        ON CONFLICT (name, email, job_title, batch_id) DO NOTHING
+    ''', (name, email, mobile, strengths, gaps, recommendation, score, status, resume_path, job_title, batch_id))
 
-    if exists:
-        conn.close()
-        return "duplicate"
-    else:
-        c.execute('''INSERT INTO analysis 
-                     (name, email, mobile, strengths, gaps, recommendation, score, status, resume_path, job_title, date_added, batch_id)
-                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE, %s)''',
-                  (name, email, mobile, strengths, gaps, recommendation, score, status, resume_path, job_title, batch_id))
-        conn.commit()
-        conn.close()
-        return "added"
+    conn.commit()
+    conn.close()
+    return "added"
+
 
 
 def is_resume_processed(resume_path, job_title, batch_id):
