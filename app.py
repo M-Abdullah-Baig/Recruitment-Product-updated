@@ -409,7 +409,7 @@ Be objective and realistic. Focus on job readiness, not just keywords. Avoid inf
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
         )
