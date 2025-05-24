@@ -736,6 +736,10 @@ elif st.session_state.page == "dashboard":
                     resume_files.append((os.path.basename(path), path))
 
             if resume_files:
+                job_title = "filtered_resumes"
+                if not filtered_df.empty and 'job_title' in filtered_df.columns:
+                    job_title = filtered_df.iloc[0]['job_title'].replace(' ', '_')
+
                 zip_buffer = io.BytesIO()
                 with zipfile.ZipFile(zip_buffer, "w") as zf:
                     for filename, filepath in resume_files:
@@ -747,7 +751,7 @@ elif st.session_state.page == "dashboard":
                 st.download_button(
                     label="📁 Download All Resumes (ZIP)",
                     data=zip_buffer,
-                    file_name=f"{row['job_title'].replace(' ', '_')}_resumes.zip",
+                    file_name=f"{job_title}_resumes.zip",
                     mime="application/zip"
                 )
             else:
