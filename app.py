@@ -409,7 +409,6 @@ Gaps:
 Keep your language clear and avoid fluff. Focus only on relevance to the job description.
 """
 
-
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -417,7 +416,44 @@ Keep your language clear and avoid fluff. Focus only on relevance to the job des
             temperature=0.3,
             max_tokens=800
         )
-        return response.choices[0].message.content.strip()
+        result = response.choices[0].message.content.strip()
+
+        # Initialize variables
+        score = 0
+        recommendation = ""
+        strengths = []
+        gaps = []
+        current_section = None
+
+        # Parse the response line by line
+        for line in result.splitlines():
+            line = line.strip()
+            if line.lower().startswith("score:"):
+                try:
+                    match = re.search(r'score.*?:\s*(\d+\.?\d*)', line, re.IGNORECASE)
+                    if match:
+                        score = float(match.group(1))
+                except:
+                    pass
+            elif line.lower().startswith("recommendation:"):
+                recommendation = line.split(":", 1)[-1].strip()
+            elif line.lower().startswith("strengths:"):
+                current_section = "strengths"
+            elif line.lower().startswith("gaps:"):
+                current_section = "gaps"
+            elif line.startswith("- ") and current_section == "strengths":
+                strengths.append(line[2:].strip())
+            elif line.startswith("- ") and current_section == "gaps":
+                gaps.append(line[2:].strip())
+
+        # Join strengths and gaps into strings
+        strengths_str = "\n".join(strengths) if strengths else "None"
+        gaps_str = "\n".join(gaps) if gaps else "None"
+
+        # Format the output to match expected structure
+        formatted_result = f"Score: {score}\nRecommendation: {recommendation}\nStrengths: {strengths_str}\nGaps: {gaps_str}"
+        return formatted_result
+
     except Exception as e:
         st.warning(f"Error: {e}")
         return "Score: 0\nRecommendation: Analysis failed due to an error\nStrengths: None\nGaps: None"
