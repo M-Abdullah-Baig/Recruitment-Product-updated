@@ -415,7 +415,7 @@ Keep your language clear and avoid fluff. Focus only on relevance to the job des
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=500
+            max_tokens=800
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -592,6 +592,7 @@ if st.session_state.page == "change_password":
 
 elif st.session_state.page == "dashboard":
     st.title("Recruitment Dashboard")
+
     # Initialize session state for dates and filtered results if not set
     if "gmail_start_date" not in st.session_state:
         st.session_state.gmail_start_date = datetime.date.today() - datetime.timedelta(days=30)
@@ -623,7 +624,7 @@ elif st.session_state.page == "dashboard":
 
     if submit_button:
         df = load_data()
-        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]  # Drop unnamed columns if any
     
         if 'date_added' in df.columns:
             df['date_added'] = pd.to_datetime(df['date_added'], errors='coerce')
@@ -675,62 +676,82 @@ elif st.session_state.page == "dashboard":
                     col1, col2 = st.columns([1, 3])
                     col1.markdown('<span class="label">Name</span>', unsafe_allow_html=True)
                     col2.markdown(f'<span class="value">{row["name"]}</span>', unsafe_allow_html=True)
+
                     col1, col2 = st.columns([1, 3])
                     col1.markdown('<span class="label">Email</span>', unsafe_allow_html=True)
                     col2.markdown(f'<span class="value">{row["email"]}</span>', unsafe_allow_html=True)
+
                     col1, col2 = st.columns([1, 3])
                     col1.markdown('<span class="label">Mobile</span>', unsafe_allow_html=True)
                     col2.markdown(f'<span class="value">{row["mobile"]}</span>', unsafe_allow_html=True)
+
                     col1, col2 = st.columns([1, 3])
                     col1.markdown('<span class="label">Score</span>', unsafe_allow_html=True)
                     col2.markdown(f'<span class="value">{row["score"]}</span>', unsafe_allow_html=True)
+
                     col1, col2 = st.columns([1, 3])
                     col1.markdown('<span class="label">Recommendation</span>', unsafe_allow_html=True)
                     col2.markdown(f'<span class="value">{row["recommendation"]}</span>', unsafe_allow_html=True)
+
                     col1, col2 = st.columns([1, 3])
                     col1.markdown('<span class="label">Gaps</span>', unsafe_allow_html=True)
                     col2.markdown(f'<span class="value">{row["gaps"]}</span>', unsafe_allow_html=True)
+
                     col1, col2 = st.columns([1, 3])
                     col1.markdown('<span class="label">Strengths</span>', unsafe_allow_html=True)
                     col2.markdown(f'<span class="value">{row.get("strengths", "Not Available")}</span>', unsafe_allow_html=True)
+
                     col1, col2 = st.columns([1, 3])
                     col1.markdown('<span class="label">Status</span>', unsafe_allow_html=True)
                     col2.markdown(f'<span class="value">{row["status"]}</span>', unsafe_allow_html=True)
+
                     col1, col2 = st.columns([1, 3])
                     col1.markdown('<span class="label">Job Title</span>', unsafe_allow_html=True)
                     col2.markdown(f'<span class="value">{row["job_title"]}</span>', unsafe_allow_html=True)
+
                     col1, col2 = st.columns([1, 3])
                     col1.markdown('<span class="label">Batch ID</span>', unsafe_allow_html=True)
                     col2.markdown(f'<span class="value">{row["batch_id"]}</span>', unsafe_allow_html=True)
-                    resume_path = row.get('resume_path', None)
-                    if resume_path and os.path.exists(resume_path):
-                        with open(resume_path, "rb") as file:
-                            st.download_button(
-                                label="📄 Download Resume",
-                                data=file,
-                                file_name=os.path.basename(resume_path),
-                                mime="application/octet-stream",
-                                key=f"download_resume_{index}"
-                            )
-                    else:
-                        st.info("ℹ️ Resume file not found, but extracted details are available in the report.")
+
                     st.markdown('</div>', unsafe_allow_html=True)
 
-        # Add a single export button at the end of all filtered results
-        if not filtered_df.empty:
-            # Create an Excel export of the entire filtered DataFrame
-            output = BytesIO()
+            # Export filtered DataFrame to Excel
+            output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 filtered_df.to_excel(writer, index=False, sheet_name='Filtered Resumes')
             excel_data = output.getvalue()
 
-            # Display the download button for the whole filtered dataset
             st.download_button(
                 label="📊 Export All to Excel",
                 data=excel_data,
-                file_name="filtered_resumes.xlsx",
+                file_name=f"{row['job_title'].replace(' ', '_')}_resumes_analysis.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
+            # Create ZIP with all resumes for download
+            resume_files = []
+            for _, row in filtered_df.iterrows():
+                path = row.get('resume_path', None)
+                if path and os.path.exists(path):
+                    resume_files.append((os.path.basename(path), path))
+
+            if resume_files:
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w") as zf:
+                    for filename, filepath in resume_files:
+                        with open(filepath, "rb") as f:
+                            file_data = f.read()
+                            zf.writestr(filename, file_data)
+                zip_buffer.seek(0)
+
+                st.download_button(
+                    label="📁 Download All Resumes (ZIP)",
+                    data=zip_buffer,
+                    file_name=f"{row['job_title'].replace(' ', '_')}_resumes.zip",
+                    mime="application/zip"
+                )
+            else:
+                st.info("No resume files found to download.")
         else:
             st.info("No results found matching the filters.")
 
@@ -1012,7 +1033,7 @@ elif st.session_state.page == "quick_analysis":
         st.download_button(
             label="📊 Export All Analyses to Excel",
             data=excel_all_data,
-            file_name=f"{row['job_title'].replace(' ', '_')}_resumes.xlsx",
+            file_name=f"{row['job_title'].replace(' ', '_')}_resumes_analysis.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="export_all_excel"
         )
