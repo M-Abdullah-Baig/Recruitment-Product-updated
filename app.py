@@ -13,7 +13,7 @@ from docx import Document
 
 from io import BytesIO
 import imaplib
-
+from zipfile import ZipFile
 import email
 
 # Streamlit page config
@@ -917,11 +917,16 @@ elif st.session_state.page == "quick_analysis":
 
                 results = []
                 for uploaded_resume in uploaded_resumes:
-                    resume_path = os.path.join(RESUME_FOLDER, uploaded_resume.name)
-                    with open(resume_path, "wb") as f:
-                        f.write(uploaded_resume.read())
+                    file_name = uploaded_resume.name
+                    file_bytes = uploaded_resume.read()
+                    # Upload to Supabase
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    base, ext = os.path.splitext(file_name)
+                    unique_filename = f"{base}_{timestamp}{ext}"
+                    supabase.storage.from_('resumes').upload(f"quick_analysis/{unique_filename}", file_bytes)
+                    resume_url = supabase.storage.from_('resumes').get_public_url(f"quick_analysis/{unique_filename}")
 
-                    resume_info = extract_resume_info(resume_path)
+                    resume_info = extract_resume_info(resume_url)
                     if not resume_info:
                         continue
 
@@ -955,7 +960,7 @@ elif st.session_state.page == "quick_analysis":
                         "recommendation": recommendation,
                         "gaps": gaps,
                         "strengths": strengths,
-                        "resume_path": resume_path,
+                        "resume_path": resume_url,
                         "job_title": job_title,
                         "status": status,
                     })
@@ -1000,33 +1005,36 @@ elif st.session_state.page == "quick_analysis":
                 col1.markdown("**Job Title**")
                 col2.write(row["job_title"])
 
-                if row["resume_path"] and os.path.exists(row["resume_path"]):
-                    with open(row["resume_path"], "rb") as file:
-                        st.download_button(
-                            label="📄 Download Resume",
-                            data=file,
-                            file_name=os.path.basename(row["resume_path"]),
-                            mime="application/octet-stream",
-                            key=f"download_resume_quick_{index}"
-                        )
-                else:
-                    st.warning("Resume file not found.")
 
-        # Export all analyzed results to a single Excel file
-        final_df = pd.DataFrame(st.session_state.quick_analysis_results)
+                df = pd.DataFrame([row])
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Resume Analysis')
+                excel_data = output.getvalue()
+                col2.download_button(
+                    label="📊 Export to Excel",
+                    data=excel_data,
+                    file_name=f"{row['name']}_resume_analysis.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"export_excel_quick_{index}"
+                )
 
-        output_all = BytesIO()
-        with pd.ExcelWriter(output_all, engine='openpyxl') as writer:
-            final_df.to_excel(writer, index=False, sheet_name='Resume Analysis')
 
-        excel_all_data = output_all.getvalue()
+                # Zip all resumes and offer as a single download
+                zip_buffer = BytesIO()
+                with ZipFile(zip_buffer, "w") as zipf:
+                    for row in st.session_state.quick_analysis_results:
+                        resume_path = row.get("resume_path")
+                        if resume_path and os.path.exists(resume_path):
+                            zipf.write(resume_path, arcname=os.path.basename(resume_path))
+                zip_buffer.seek(0)
 
-        st.download_button(
-            label="📊 Export All Analyses to Excel",
-            data=excel_all_data,
-            file_name="all_resume_analysis.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="export_all_excel"
-        )
+                st.download_button(
+                    label="📦 Download All Resumes (ZIP)",
+                    data=zip_buffer,
+                    file_name=f"{row['job_title'].replace(' ', '_')}_resumes.zip",
+                    mime="application/zip",
+                    key="download_all_zip"
+                )
     else:
         st.info("No resumes analyzed yet.")
