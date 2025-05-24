@@ -4,7 +4,7 @@ import datetime
 import psycopg2
 import streamlit as st
 import pandas as pd
-
+import io
 import openai
 from dotenv import load_dotenv
 import re
