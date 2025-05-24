@@ -1012,7 +1012,7 @@ elif st.session_state.page == "quick_analysis":
         st.download_button(
             label="📊 Export All Analyses to Excel",
             data=excel_all_data,
-            file_name="all_resume_analysis.xlsx",
+            file_name=f"{row['job_title'].replace(' ', '_')}_resumes.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="export_all_excel"
         )
