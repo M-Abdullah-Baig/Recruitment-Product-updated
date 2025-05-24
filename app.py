@@ -795,9 +795,12 @@ elif st.session_state.page == "dashboard":
         else:
             st.info("No results found matching the filters.")
 
-
 elif st.session_state.page == "process_email":
     st.title("Process Email Resumes")
+
+    # Initialize session state for uploaded JD files
+    if "uploaded_jd_files" not in st.session_state:
+        st.session_state.uploaded_jd_files = []
 
     job_keyword = st.text_input("Enter Job Keyword (e.g., Data Scientist)").strip()
     col1, col2 = st.columns(2)
@@ -828,18 +831,23 @@ elif st.session_state.page == "process_email":
     st.subheader("Job Description Input")
     jd_input_method = st.radio("Provide Job Description by:", ("Upload File(s)", "Paste Text"))
     jd_text_input = ""
-    uploaded_files = []
 
     if jd_input_method == "Upload File(s)":
-        uploaded_files = st.file_uploader("Upload JD file(s)", type=["txt", "docx", "pdf"], accept_multiple_files=True)
+        uploaded_files = st.file_uploader("Upload JD file(s)", type=["txt", "docx", "pdf"], accept_multiple_files=True, key="jd_uploader")
         if uploaded_files:
+            # Clear previous session state JD files
+            st.session_state.uploaded_jd_files = []
+            os.makedirs(JD_FOLDER, exist_ok=True)
             for uploaded_file in uploaded_files:
                 save_path = os.path.join(JD_FOLDER, uploaded_file.name)
                 with open(save_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
+                st.session_state.uploaded_jd_files.append(save_path)
             st.success(f"Uploaded {len(uploaded_files)} JD file(s) to {JD_FOLDER}")
     else:
         jd_text_input = st.text_area("Paste the Job Description text here")
+        # Clear session state JD files when switching to text input
+        st.session_state.uploaded_jd_files = []
 
     if st.button("Process Resumes"):
         with st.spinner("Processing resumes..."):
@@ -852,20 +860,27 @@ elif st.session_state.page == "process_email":
                 st.error(f"No resume folder found for keyword '{job_keyword}' at {resume_subfolder}")
             else:
                 if jd_input_method == "Upload File(s)":
-                    jd_files = [f for f in os.listdir(JD_FOLDER) if os.path.isfile(os.path.join(JD_FOLDER, f))]
-                    if not jd_files:
-                        st.error("No JD files uploaded.")
+                    if not st.session_state.uploaded_jd_files:
+                        st.error("No JD files uploaded in this session.")
                         st.stop()
-                    jd_path = os.path.join(JD_FOLDER, jd_files[0])
+                    # Use the first uploaded JD file
+                    jd_path = st.session_state.uploaded_jd_files[0]
+                    if not os.path.exists(jd_path):
+                        st.error(f"JD file not found at {jd_path}.")
+                        st.stop()
                     ext = os.path.splitext(jd_path)[1].lower()
-                    if ext == '.txt':
-                        job_description = open(jd_path, 'r', encoding='utf-8').read()
-                    elif ext == '.docx':
-                        job_description = extract_text_from_docx(jd_path)
-                    elif ext == '.pdf':
-                        job_description = extract_pdf_text(jd_path)
-                    else:
-                        st.error("Unsupported JD file format.")
+                    try:
+                        if ext == '.txt':
+                            job_description = open(jd_path, 'r', encoding='utf-8').read()
+                        elif ext == '.docx':
+                            job_description = extract_text_from_docx(jd_path)
+                        elif ext == '.pdf':
+                            job_description = extract_pdf_text(jd_path)
+                        else:
+                            st.error("Unsupported JD file format.")
+                            st.stop()
+                    except Exception as e:
+                        st.error(f"Failed to read JD file: {e}")
                         st.stop()
                 else:
                     job_description = jd_text_input.strip()
@@ -882,6 +897,7 @@ elif st.session_state.page == "process_email":
                 for filename in os.listdir(resume_subfolder):
                     resume_path = os.path.join(resume_subfolder, filename)
                     if is_resume_processed(resume_path, job_title, batch_id):
+                        total_duplicates += 1
                         continue
 
                     resume_info = extract_resume_info(resume_path)
