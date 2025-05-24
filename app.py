@@ -368,44 +368,47 @@ def analyze_resume_with_gpt(resume_info, job_description):
         resume_text = f"Name: {resume_info.get('name', 'Not found')}\nEmail: {resume_info.get('email', 'Not found')}\nMobile: {resume_info.get('mobile', 'Not found')}"
 
     prompt = f"""
-You are an expert HR recruiter specializing in data science hiring. Your task is to critically evaluate a candidate's resume against a job description and assign a realistic score out of 10.
+You are an expert HR recruiter specializing in hiring for data science roles. Carefully evaluate the candidate's resume against the job description and provide an objective score and assessment.
 
-Job Description:
+---
+
+📄 Job Description:
 {job_description}
 
-Candidate Resume:
+📄 Candidate Resume:
 {resume_text}
 
-Instructions:
-You are an expert technical recruiter tasked with evaluating a candidate's fit for a data science role based on their resume and the job description. Follow the steps below to conduct a professional screening.
+---
 
-1. Experience Evaluation:
-   - Prioritize full-time experience if the job description explicitly requires it (e.g., “3+ years full-time experience”).
-   - If not explicitly stated, include internships, freelance work, academic projects, or part-time roles that demonstrate practical exposure.
-   - Assess the relevance, duration, and depth of the candidate’s roles to the JD.
+Please evaluate the following:
 
-2. Skills Assessment:
-   - Match candidate skills (technical tools, programming languages, frameworks, platforms) against those mentioned in the JD.
-   - Consider both hands-on experience and conceptual understanding.
-   - Highlight any unique or in-demand tools (e.g., ML frameworks, cloud platforms, big data tools).
+1. **Experience** — relevance, depth, and alignment to JD.
+2. **Skills** — match with JD (e.g., Python, ML, cloud, SQL).
+3. **Education & Certifications** — degree level and relevant credentials.
 
-3. Education & Certifications:
-   - Evaluate the candidate’s academic background (degree level, institution, major) in relation to the job’s expectations.
-   - Note relevant certifications (e.g., AWS, Azure, Google Cloud, Data Science Specializations) that add value.
+---
 
-4. Scoring Guidelines (Rate from 0–10):
-   - 8–10: Excellent fit — candidate meets or exceeds key requirements and is job-ready.
-   - 5–7: Moderate fit — good potential but needs minor upskilling or experience depth.
-   - 0–4: Poor fit — lacks major qualifications or relevant experience.
+🎯 Scoring Guidelines (Out of 10):
+- **8–10**: Strong match — candidate is job-ready.
+- **5–7**: Moderate match — some areas need improvement.
+- **0–4**: Weak match — lacks key qualifications.
 
-5. Output Format (Structured and Concise):
-Score: [e.g., 8.5]
-Recommendation: [e.g., Strong match for interview shortlist.]
-Strengths: [e.g., Robust experience with Python, SQL, and end-to-end ML workflows.]
-Gaps: [e.g., Limited cloud deployment and stakeholder communication.]
+---
 
-Be objective and realistic. Focus on job readiness, not just keywords. Avoid inflating scores.
+📝 Format the output exactly as below, even if any section is empty:
+
+Score: [e.g., 8.5]  
+Recommendation: [e.g., Recommend for interview shortlist.]  
+Strengths:  
+- [e.g., Hands-on with Python and ML pipelines]  
+- [e.g., Good academic background in Data Science]  
+Gaps:  
+- [e.g., No exposure to cloud platforms]  
+- [e.g., Limited team project experience]
+
+Keep your language clear and avoid fluff. Focus only on relevance to the job description.
 """
+
 
     try:
         response = openai.ChatCompletion.create(
@@ -872,7 +875,7 @@ elif st.session_state.page == "process_email":
 
 elif st.session_state.page == "quick_analysis":
     st.title("Quick Resume Analysis")
-    # Initialize session state for results if not set
+    
     if "quick_analysis_results" not in st.session_state:
         st.session_state.quick_analysis_results = []
 
@@ -917,16 +920,11 @@ elif st.session_state.page == "quick_analysis":
 
                 results = []
                 for uploaded_resume in uploaded_resumes:
-                    file_name = uploaded_resume.name
-                    file_bytes = uploaded_resume.read()
-                    # Upload to Supabase
-                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                    base, ext = os.path.splitext(file_name)
-                    unique_filename = f"{base}_{timestamp}{ext}"
-                    supabase.storage.from_('resumes').upload(f"quick_analysis/{unique_filename}", file_bytes)
-                    resume_url = supabase.storage.from_('resumes').get_public_url(f"quick_analysis/{unique_filename}")
+                    resume_path = os.path.join(RESUME_FOLDER, uploaded_resume.name)
+                    with open(resume_path, "wb") as f:
+                        f.write(uploaded_resume.read())
 
-                    resume_info = extract_resume_info(resume_url)
+                    resume_info = extract_resume_info(resume_path)
                     if not resume_info:
                         continue
 
@@ -960,19 +958,17 @@ elif st.session_state.page == "quick_analysis":
                         "recommendation": recommendation,
                         "gaps": gaps,
                         "strengths": strengths,
-                        "resume_path": resume_url,
+                        "resume_path": resume_path,
                         "job_title": job_title,
                         "status": status,
                     })
 
-                # Store results in session state
                 st.session_state.quick_analysis_results = results
                 st.success("Analysis complete! See results below.")
 
             except Exception as e:
                 st.error(f"Error processing resumes: {e}")
 
-    # Display results from session state if available
     if st.session_state.quick_analysis_results:
         st.subheader("Resume Analysis Results")
         for index, row in enumerate(st.session_state.quick_analysis_results):
@@ -1005,36 +1001,39 @@ elif st.session_state.page == "quick_analysis":
                 col1.markdown("**Job Title**")
                 col2.write(row["job_title"])
 
+        # Export all analyzed results to a single Excel file
+        final_df = pd.DataFrame(st.session_state.quick_analysis_results)
 
-                df = pd.DataFrame([row])
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df.to_excel(writer, index=False, sheet_name='Resume Analysis')
-                excel_data = output.getvalue()
-                col2.download_button(
-                    label="📊 Export to Excel",
-                    data=excel_data,
-                    file_name=f"{row['name']}_resume_analysis.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"export_excel_quick_{index}"
-                )
+        output_all = BytesIO()
+        with pd.ExcelWriter(output_all, engine='openpyxl') as writer:
+            final_df.to_excel(writer, index=False, sheet_name='Resume Analysis')
+        excel_all_data = output_all.getvalue()
 
+        st.download_button(
+            label="📊 Export All Analyses to Excel",
+            data=excel_all_data,
+            file_name="all_resume_analysis.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="export_all_excel"
+        )
 
-                # Zip all resumes and offer as a single download
-                zip_buffer = BytesIO()
-                with ZipFile(zip_buffer, "w") as zipf:
-                    for row in st.session_state.quick_analysis_results:
-                        resume_path = row.get("resume_path")
-                        if resume_path and os.path.exists(resume_path):
-                            zipf.write(resume_path, arcname=os.path.basename(resume_path))
-                zip_buffer.seek(0)
+        # 📁 Download All Resumes (ZIP)
+        from zipfile import ZipFile
 
-                st.download_button(
-                    label="📦 Download All Resumes (ZIP)",
-                    data=zip_buffer,
-                    file_name=f"{row['job_title'].replace(' ', '_')}_resumes.zip",
-                    mime="application/zip",
-                    key="download_all_zip"
-                )
+        resume_files = [row["resume_path"] for row in st.session_state.quick_analysis_results if row["resume_path"] and os.path.exists(row["resume_path"])]
+        if resume_files:
+            zip_buffer = BytesIO()
+            with ZipFile(zip_buffer, "w") as zipf:
+                for file_path in resume_files:
+                    zipf.write(file_path, arcname=os.path.basename(file_path))
+            zip_buffer.seek(0)
+
+            st.download_button(
+                label="📁 Download All Resumes (ZIP)",
+                data=zip_buffer,
+                file_name=f"{row['job_title'].replace(' ', '_')}_resumes.zip",
+                mime="application/zip",
+                key="download_all_resumes_zip"
+            )
     else:
         st.info("No resumes analyzed yet.")
