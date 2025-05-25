@@ -619,7 +619,6 @@ def change_password_page():
         st.session_state.page = "dashboard"
         st.rerun()
 
-RECORDS_PER_PAGE = 50
 
 # Header
 if st.session_state.page != "change_password":
@@ -631,14 +630,13 @@ if st.session_state.page == "change_password":
 elif st.session_state.page == "dashboard":
     st.title("Recruitment Dashboard")
 
+    # Initialize session state for dates and filtered results if not set
     if "gmail_start_date" not in st.session_state:
         st.session_state.gmail_start_date = datetime.date.today() - datetime.timedelta(days=30)
     if "gmail_end_date" not in st.session_state:
         st.session_state.gmail_end_date = datetime.date.today()
     if "filtered_df" not in st.session_state:
         st.session_state.filtered_df = None
-    if "page_num" not in st.session_state:
-        st.session_state.page_num = 1
 
     with st.form("filter_form"):
         col1, col2, col3 = st.columns([1, 1, 1.5])
@@ -651,8 +649,9 @@ elif st.session_state.page == "dashboard":
         show_top_n_input = col3.text_input("Show Top N Scorers (Enter a number, 0 for all)", value="0")
         submit_button = st.form_submit_button("Show Results")
 
+    # Validate show_top_n input
     try:
-        show_top_n = int(show_top_n_input.strip()) if show_top_n_input.strip() else 0
+        show_top_n = int(show_top_n_input) if show_top_n_input.strip() else 0
         if show_top_n < 0:
             st.error("Please enter a non-negative number for Top N Scorers.")
             show_top_n = 0
@@ -661,10 +660,9 @@ elif st.session_state.page == "dashboard":
         show_top_n = 0
 
     if submit_button:
-        st.session_state.page_num = 1  # reset to first page on new filter
         df = load_data()
-        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]  # Drop unnamed columns if any
+    
         if 'date_added' in df.columns:
             df['date_added'] = pd.to_datetime(df['date_added'], errors='coerce')
             filtered_df = df[
@@ -673,106 +671,131 @@ elif st.session_state.page == "dashboard":
             ]
         else:
             filtered_df = df
-
+        
         if subject_filter:
-            filtered_df = filtered_df[filtered_df['job_title'].str.contains(subject_filter, case=False, na=False)]
-
+            filtered_df = filtered_df[filtered_df['job_title'].str.contains(subject_filter, case=False, na=False, regex=True)]
+        
         if batch_start_date and batch_end_date:
             batch_id = f"{batch_start_date.strftime('%Y-%m-%d')}_to_{batch_end_date.strftime('%Y-%m-%d')}"
-            filtered_df = filtered_df[filtered_df['batch_id'].str.contains(batch_id, case=False, na=False)]
-
+            filtered_df = filtered_df[filtered_df['batch_id'].str.contains(batch_id, case=False, na=False, regex=True)]
+        
         if status_filter != "All":
             filtered_df = filtered_df[filtered_df['status'] == status_filter]
-
+    
         if show_top_n > 0:
             filtered_df = filtered_df.sort_values('score', ascending=False).head(show_top_n)
 
+        # Store filtered results in session state
         st.session_state.filtered_df = filtered_df
 
+    # Display results from session state if available
     if st.session_state.filtered_df is not None:
         filtered_df = st.session_state.filtered_df
-        total_records = len(filtered_df)
-        total_pages = max((total_records - 1) // RECORDS_PER_PAGE + 1, 1)
-
-        # Pagination logic
-        page_num = st.session_state.page_num
-        start_idx = (page_num - 1) * RECORDS_PER_PAGE
-        end_idx = start_idx + RECORDS_PER_PAGE
-        page_df = filtered_df.iloc[start_idx:end_idx]
 
         mcol1, mcol2, mcol3 = st.columns(3)
         with mcol1:
+            st.markdown('<div class="metric-card metric-card-total">', unsafe_allow_html=True)
             st.metric("Total Resumes", len(filtered_df))
+            st.markdown('</div>', unsafe_allow_html=True)
         with mcol2:
+            st.markdown('<div class="metric-card metric-card-shortlisted">', unsafe_allow_html=True)
             st.metric("Shortlisted", len(filtered_df[filtered_df['status'] == "Shortlisted"]))
+            st.markdown('</div>', unsafe_allow_html=True)
         with mcol3:
+            st.markdown('<div class="metric-card metric-card-rejected">', unsafe_allow_html=True)
             st.metric("Rejected", len(filtered_df[filtered_df['status'] == "Rejected"]))
-
-        if not page_df.empty:
-            for index, row in page_df.iterrows():
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        if not filtered_df.empty:
+            for index, row in filtered_df.iterrows():
                 with st.expander(f"Report - {row['name']} ({row['job_title']}) - Hiring: {row['batch_id']}"):
                     st.markdown('<div class="expander-content">', unsafe_allow_html=True)
-                    for label, key in [
-                        ("Name", "name"), ("Email", "email"), ("Mobile", "mobile"),
-                        ("Score", "score"), ("Recommendation", "recommendation"),
-                        ("Gaps", "gaps"), ("Strengths", "strengths"),
-                        ("Status", "status"), ("Job Title", "job_title"), ("Batch ID", "batch_id")
-                    ]:
-                        col1, col2 = st.columns([1, 3])
-                        col1.markdown(f'<span class="label">{label}</span>', unsafe_allow_html=True)
-                        col2.markdown(f'<span class="value">{row.get(key, "Not Available")}</span>', unsafe_allow_html=True)
+                    col1, col2 = st.columns([1, 3])
+                    col1.markdown('<span class="label">Name</span>', unsafe_allow_html=True)
+                    col2.markdown(f'<span class="value">{row["name"]}</span>', unsafe_allow_html=True)
+
+                    col1, col2 = st.columns([1, 3])
+                    col1.markdown('<span class="label">Email</span>', unsafe_allow_html=True)
+                    col2.markdown(f'<span class="value">{row["email"]}</span>', unsafe_allow_html=True)
+
+                    col1, col2 = st.columns([1, 3])
+                    col1.markdown('<span class="label">Mobile</span>', unsafe_allow_html=True)
+                    col2.markdown(f'<span class="value">{row["mobile"]}</span>', unsafe_allow_html=True)
+
+                    col1, col2 = st.columns([1, 3])
+                    col1.markdown('<span class="label">Score</span>', unsafe_allow_html=True)
+                    col2.markdown(f'<span class="value">{row["score"]}</span>', unsafe_allow_html=True)
+
+                    col1, col2 = st.columns([1, 3])
+                    col1.markdown('<span class="label">Recommendation</span>', unsafe_allow_html=True)
+                    col2.markdown(f'<span class="value">{row["recommendation"]}</span>', unsafe_allow_html=True)
+
+                    col1, col2 = st.columns([1, 3])
+                    col1.markdown('<span class="label">Gaps</span>', unsafe_allow_html=True)
+                    col2.markdown(f'<span class="value">{row["gaps"]}</span>', unsafe_allow_html=True)
+
+                    col1, col2 = st.columns([1, 3])
+                    col1.markdown('<span class="label">Strengths</span>', unsafe_allow_html=True)
+                    col2.markdown(f'<span class="value">{row.get("strengths", "Not Available")}</span>', unsafe_allow_html=True)
+
+                    col1, col2 = st.columns([1, 3])
+                    col1.markdown('<span class="label">Status</span>', unsafe_allow_html=True)
+                    col2.markdown(f'<span class="value">{row["status"]}</span>', unsafe_allow_html=True)
+
+                    col1, col2 = st.columns([1, 3])
+                    col1.markdown('<span class="label">Job Title</span>', unsafe_allow_html=True)
+                    col2.markdown(f'<span class="value">{row["job_title"]}</span>', unsafe_allow_html=True)
+
+                    col1, col2 = st.columns([1, 3])
+                    col1.markdown('<span class="label">Batch ID</span>', unsafe_allow_html=True)
+                    col2.markdown(f'<span class="value">{row["batch_id"]}</span>', unsafe_allow_html=True)
+
                     st.markdown('</div>', unsafe_allow_html=True)
 
-            # Excel export of current page
-            excel_output = io.BytesIO()
-            with pd.ExcelWriter(excel_output, engine='xlsxwriter') as writer:
-                page_df.to_excel(writer, index=False, sheet_name='Page Records')
+            # Export filtered DataFrame to Excel
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                filtered_df.to_excel(writer, index=False, sheet_name='Filtered Resumes')
+            excel_data = output.getvalue()
+
             st.download_button(
-                label="📊 Export This Page to Excel",
-                data=excel_output.getvalue(),
-                file_name=f"{page_df.iloc[0]['job_title'].replace(' ', '_')}_page_{page_num}_resumes.xlsx",
+                label="📊 Export All to Excel",
+                data=excel_data,
+                file_name=f"{row['job_title'].replace(' ', '_')}_resumes_analysis.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-            # ZIP download of current page resumes
+            # Create ZIP with all resumes for download
             resume_files = []
-            for _, row in page_df.iterrows():
+            for _, row in filtered_df.iterrows():
                 path = row.get('resume_path', None)
                 if path and os.path.exists(path):
                     resume_files.append((os.path.basename(path), path))
 
             if resume_files:
+                job_title = "filtered_resumes"
+                if not filtered_df.empty and 'job_title' in filtered_df.columns:
+                    job_title = filtered_df.iloc[0]['job_title'].replace(' ', '_')
+
                 zip_buffer = io.BytesIO()
                 with zipfile.ZipFile(zip_buffer, "w") as zf:
                     for filename, filepath in resume_files:
                         with open(filepath, "rb") as f:
-                            zf.writestr(filename, f.read())
+                            file_data = f.read()
+                            zf.writestr(filename, file_data)
                 zip_buffer.seek(0)
+
                 st.download_button(
-                    label="📁 Download Page Resumes (ZIP)",
+                    label="📁 Download All Resumes (ZIP)",
                     data=zip_buffer,
-                    file_name=f"{page_df.iloc[0]['job_title'].replace(' ', '_')}_page_{page_num}_resumes.zip",
+                    file_name=f"{job_title}_resumes.zip",
                     mime="application/zip"
                 )
             else:
-                st.info("No resume files found for this page.")
-
-            # Navigation buttons
-            nav_col1, nav_col2, nav_col3 = st.columns([1, 2, 1])
-            with nav_col1:
-                if st.session_state.page_num > 1:
-                    if st.button("⬅ Previous"):
-                        st.session_state.page_num -= 1
-            with nav_col3:
-                if st.session_state.page_num < total_pages:
-                    if st.button("Next ➡"):
-                        st.session_state.page_num += 1
-
-            with nav_col2:
-                st.write(f"Page {page_num} of {total_pages}")
-
+                st.info("No resume files found to download.")
         else:
-            st.info("No results found for the selected page.")
+            st.info("No results found matching the filters.")
+
 
 elif st.session_state.page == "process_email":
     st.title("Process Email Resumes")
