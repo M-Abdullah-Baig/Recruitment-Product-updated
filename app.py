@@ -518,7 +518,7 @@ def is_resume_processed(resume_path, job_title, batch_id):
 def load_data():
     try:
         conn = get_connection()
-        df = pd.read_sql_query("SELECT * FROM analysis ORDER BY id DESC LIMIT 50", conn)
+        df = pd.read_sql_query("SELECT * FROM analysis ORDER BY id DESC LIMIT 100", conn)
         conn.close()
         return df
     except Exception as e:
@@ -629,13 +629,19 @@ if st.session_state.page == "change_password":
 elif st.session_state.page == "dashboard":
     st.title("Recruitment Dashboard")
 
-    # Initialize session state for dates and filtered results if not set
+    # Initialize session state for dates, filtered results, and page number
     if "gmail_start_date" not in st.session_state:
         st.session_state.gmail_start_date = datetime.date.today() - datetime.timedelta(days=30)
     if "gmail_end_date" not in st.session_state:
         st.session_state.gmail_end_date = datetime.date.today()
     if "filtered_df" not in st.session_state:
         st.session_state.filtered_df = None
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = 1  # Default to Page 1
+
+    # Records per page and total records to display
+    RECORDS_PER_PAGE = 50
+    TOTAL_RECORDS = 100
 
     with st.form("filter_form"):
         col1, col2, col3 = st.columns([1, 1, 1.5])
@@ -683,14 +689,25 @@ elif st.session_state.page == "dashboard":
     
         if show_top_n > 0:
             filtered_df = filtered_df.sort_values('score', ascending=False).head(show_top_n)
+        else:
+            filtered_df = filtered_df.sort_values('score', ascending=False).head(TOTAL_RECORDS)  # Limit to 100 records
 
         # Store filtered results in session state
         st.session_state.filtered_df = filtered_df
+        st.session_state.current_page = 1  # Reset to Page 1 on new filter
 
     # Display results from session state if available
     if st.session_state.filtered_df is not None:
         filtered_df = st.session_state.filtered_df
 
+        # Pagination logic
+        total_records = len(filtered_df)
+        total_pages = 2 if total_records > 0 else 1  # Only 2 pages for up to 100 records
+        start_idx = (st.session_state.current_page - 1) * RECORDS_PER_PAGE
+        end_idx = min(start_idx + RECORDS_PER_PAGE, total_records)
+        page_df = filtered_df.iloc[start_idx:end_idx]  # Slice DataFrame for current page
+
+        # Display metrics for the full filtered dataset
         mcol1, mcol2, mcol3 = st.columns(3)
         with mcol1:
             st.markdown('<div class="metric-card metric-card-total">', unsafe_allow_html=True)
@@ -704,9 +721,10 @@ elif st.session_state.page == "dashboard":
             st.markdown('<div class="metric-card metric-card-rejected">', unsafe_allow_html=True)
             st.metric("Rejected", len(filtered_df[filtered_df['status'] == "Rejected"]))
             st.markdown('</div>', unsafe_allow_html=True)
-        
-        if not filtered_df.empty:
-            for index, row in filtered_df.iterrows():
+
+        # Display records for the current page
+        if not page_df.empty:
+            for index, row in page_df.iterrows():
                 with st.expander(f"Report - {row['name']} ({row['job_title']}) - Hiring: {row['batch_id']}"):
                     st.markdown('<div class="expander-content">', unsafe_allow_html=True)
                     col1, col2 = st.columns([1, 3])
@@ -751,31 +769,28 @@ elif st.session_state.page == "dashboard":
 
                     st.markdown('</div>', unsafe_allow_html=True)
 
-            # Export filtered DataFrame to Excel
+            # Export filtered DataFrame for the current page to Excel
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                filtered_df.to_excel(writer, index=False, sheet_name='Filtered Resumes')
+                page_df.to_excel(writer, index=False, sheet_name=f'Resumes_Page_{st.session_state.current_page}')
             excel_data = output.getvalue()
 
+            job_title = page_df.iloc[0]['job_title'].replace(' ', '_') if not page_df.empty and 'job_title' in page_df.columns else "resumes"
             st.download_button(
-                label="📊 Export All to Excel",
+                label=f"📊 Export Page {st.session_state.current_page} to Excel",
                 data=excel_data,
-                file_name=f"{row['job_title'].replace(' ', '_')}_resumes_analysis.xlsx",
+                file_name=f"{job_title}_page_{st.session_state.current_page}_resumes_analysis.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-            # Create ZIP with all resumes for download
+            # Create ZIP with resumes for the current page
             resume_files = []
-            for _, row in filtered_df.iterrows():
+            for _, row in page_df.iterrows():
                 path = row.get('resume_path', None)
                 if path and os.path.exists(path):
                     resume_files.append((os.path.basename(path), path))
 
             if resume_files:
-                job_title = "filtered_resumes"
-                if not filtered_df.empty and 'job_title' in filtered_df.columns:
-                    job_title = filtered_df.iloc[0]['job_title'].replace(' ', '_')
-
                 zip_buffer = io.BytesIO()
                 with zipfile.ZipFile(zip_buffer, "w") as zf:
                     for filename, filepath in resume_files:
@@ -785,13 +800,27 @@ elif st.session_state.page == "dashboard":
                 zip_buffer.seek(0)
 
                 st.download_button(
-                    label="📁 Download All Resumes (ZIP)",
+                    label=f"📁 Download Page {st.session_state.current_page} Resumes (ZIP)",
                     data=zip_buffer,
-                    file_name=f"{job_title}_resumes.zip",
+                    file_name=f"{job_title}_page_{st.session_state.current_page}_resumes.zip",
                     mime="application/zip"
                 )
             else:
-                st.info("No resume files found to download.")
+                st.info("No resume files found to download for this page.")
+
+            # Pagination controls
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col1:
+                if st.session_state.current_page > 1:
+                    if st.button("Previous Page"):
+                        st.session_state.current_page -= 1
+            with col3:
+                if st.session_state.current_page < total_pages and end_idx < total_records:
+                    if st.button("Next Page"):
+                        st.session_state.current_page += 1
+            with col2:
+                st.write(f"Page {st.session_state.current_page} of {total_pages} (Showing {start_idx + 1} - {end_idx} of {total_records} records)")
+
         else:
             st.info("No results found matching the filters.")
 
